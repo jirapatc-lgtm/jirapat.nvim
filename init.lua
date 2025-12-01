@@ -1,5 +1,5 @@
 --[[
-
+--Hello world
 =====================================================================
 ==================== READ THIS BEFORE CONTINUING ====================
 =====================================================================
@@ -134,6 +134,9 @@ vim.o.signcolumn = 'yes'
 -- Decrease update time
 vim.o.updatetime = 250
 
+-- Fast save!
+vim.keymap.set('n', '<leader>w', '<cmd>w!<cr>')
+vim.keymap.set('n', '<leader>x', '<cmd>x<cr>')
 -- Decrease mapped sequence wait time
 vim.o.timeoutlen = 300
 
@@ -218,6 +221,8 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     vim.hl.on_yank()
   end,
 })
+
+vim.api.nvim_set_keymap('n', '<leader>e', ':lua require("mini.files").open()<CR>', { noremap = true, silent = true })
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
@@ -758,26 +763,51 @@ require('lazy').setup({
     opts = {
       notify_on_error = false,
       format_on_save = function(bufnr)
+        local ft = vim.bo[bufnr].filetype
+
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
         local disable_filetypes = { c = true, cpp = true }
-        if disable_filetypes[vim.bo[bufnr].filetype] then
+        if disable_filetypes[ft] then
           return nil
-        else
-          return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
-          }
         end
+
+        return {
+          timeout_ms = 3000,
+          lsp_format = 'fallback',
+        }
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        java = { 'google-java-format' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+      },
+      formatters = {
+        ['google-java-format'] = {
+          command = 'java',
+          args = {
+            '-jar',
+            '/Users/jerlord04/Downloads/google-java-format-1.21.0-all-deps.jar',
+            '-',
+          },
+          stdin = true,
+        },
+        prettier_graphql = {
+          -- The executable command
+          command = 'prettier',
+          -- Args: use --stdin-filepath so prettier picks correct parser by filename
+          args = { '--stdin-filepath', '$FILENAME' },
+          stdin = true,
+          -- Optional: specify fallback parser if prettier can’t detect
+          env = {
+            PRETTIERD_DEFAULT_CONFIG = vim.fn.expand '~/.config/prettier/.prettierrc',
+          },
+        },
       },
     },
   },
@@ -816,6 +846,72 @@ require('lazy').setup({
           -- },
         },
         opts = {},
+        config = function()
+          local ls = require 'luasnip'
+          local s = ls.snippet
+          local t = ls.text_node
+          local i = ls.insert_node
+          local f = ls.function_node
+          -- Helper: get current file name without extension
+          local function filename_without_ext()
+            return vim.fn.expand '%:t:r'
+          end
+
+          -- Helper: get current file name without extension
+          local function filename_without_ext()
+            return vim.fn.expand '%:t:r'
+          end
+
+          -- Helper: create package directories
+          local function create_package_dir(args)
+            local pkg = args[1][1] -- first insert_node is package name
+            if pkg ~= '' then
+              local dir = vim.fn.getcwd() .. '/' .. pkg:gsub('%.', '/')
+              vim.fn.mkdir(dir, 'p') -- 'p' makes parent directories as needed
+            end
+            return pkg
+          end
+
+          -- Java snippets
+          ls.add_snippets('java', {
+            -- System.out.printf snippet
+            s('souf', {
+              t 'System.out.printf("',
+              i(1, '%s'),
+              t '\\n", ',
+              i(2, 'arg'),
+              t ');',
+              i(0),
+            }),
+
+            -- Package + class snippet
+            s('pclass', {
+              t 'package ',
+              i(1, 'com.example'),
+              f(create_package_dir, { 1 }), -- auto-create folder
+              t { ';', '', '', 'public class ' },
+              f(filename_without_ext, {}),
+              t { ' {', '\t' },
+              i(0),
+              t { '', '}' },
+            }),
+
+            -- Package + interface snippet
+            s('iclass', {
+              -- Package line
+              t 'package ',
+              i(1, 'com.example'),
+              t { ';', '' },
+              t { '', '' },
+              -- Class declaration using file name
+              t 'public interface ',
+              f(filename_without_ext, {}),
+              t { ' {', '\t' },
+              i(0),
+              t { '', '}' },
+            }),
+          })
+        end,
       },
       'folke/lazydev.nvim',
     },
@@ -1029,5 +1125,4 @@ vim.api.nvim_create_autocmd('FileType', {
 
     require('lsp.jdtls').setup()
   end,
-}) -- The line beneath this is called `modeline`. See `:help modeline`
--- vim: ts=2 sts=2 sw=2 et
+})
